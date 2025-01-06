@@ -7,6 +7,8 @@ import stripe
 from dotenv import load_dotenv
 from fastapi import Body, FastAPI, Request, HTTPException
 from fastapi.responses import FileResponse, Response
+from apscheduler.schedulers.background import BackgroundScheduler
+from pytz import utc
 
 load_dotenv()
 
@@ -59,6 +61,10 @@ async def get_item(
             else:
                 return await response.json()
 
+def reset_limit_job():
+    print("This job is run every day at 0:00")
+
+
 
 def is_enabled_token(token):
     if token in enabled_tokens:
@@ -72,3 +78,10 @@ def is_enabled_token(token):
         enabled_tokens.append(token)
         return True
     return False
+
+# スケジューラインスタンスを作成します
+scheduler = BackgroundScheduler(timezone=utc)
+# 毎日0時に関数を実行するタスクを追加します
+scheduler.add_job(reset_limit_job, 'cron', hour=0)
+# スケジューラを起動します
+scheduler.start()

@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+aiohttp
+stripe
+python-dotenv
+apscheduler<4
+pytz

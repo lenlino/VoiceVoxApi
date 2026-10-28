@@ -26,7 +26,7 @@ whitelist = ["audio_query", "sing_frame_audio_query", "accent_phrases", "mora_da
 enabled_tokens = {}
 TOKEN_CACHE_SECONDS = 600
 
-db = sqlite3.connect("usage.db", check_same_thread=False)
+db = sqlite3.connect(os.environ.get("USAGE_DB", "usage.db"), check_same_thread=False)
 db.execute("CREATE TABLE IF NOT EXISTS usage (token TEXT, month TEXT, count INTEGER, PRIMARY KEY (token, month))")
 
 

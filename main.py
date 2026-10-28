@@ -1,5 +1,9 @@
 import json
 import os
+import re
+import sqlite3
+import time
+from datetime import datetime
 from typing import Annotated, Union, Optional
 
 import aiohttp
@@ -19,16 +23,28 @@ whitelist = ["audio_query", "sing_frame_audio_query", "accent_phrases", "mora_da
              "mora_pitch", "sing_frame_volume", "synthesis", "multi_synthesis", "frame_synthesis",
              "morphable_targets", "synthesis_morphing", "connect_waves", "validate_kana", "speakers",
              "speaker_info", "singers", "singer_info", "version"]
-enabled_tokens = []
+enabled_tokens = {}
+TOKEN_CACHE_SECONDS = 600
+
+db = sqlite3.connect("usage.db", check_same_thread=False)
+db.execute("CREATE TABLE IF NOT EXISTS usage (token TEXT, month TEXT, count INTEGER, PRIMARY KEY (token, month))")
+
+
+def check_request(token, params):
+    if params not in whitelist:
+        raise HTTPException(status_code=404)
+    if is_enabled_token(token) is False:
+        raise HTTPException(status_code=401, detail="invalid token")
+    db.execute("INSERT INTO usage VALUES (?, ?, 1) ON CONFLICT(token, month) DO UPDATE SET count = count + 1",
+               (token, datetime.now().strftime("%Y-%m")))
+    db.commit()
 
 
 @app.post("/{token}/{params}")
 async def post_item(
     token: str, params: str, request: Request, body=Body(default=None)
 ):
-    if is_enabled_token(token) is False:
-        raise HTTPException(status_code=401, detail="invalid token")
-    print(enabled_tokens)
+    check_request(token, params)
     if body is None:
         headers = {}
     else:
@@ -48,8 +64,7 @@ async def post_item(
 async def get_item(
     token: str, params: str, request: Request, body=Body(default=None)
 ):
-    if is_enabled_token(token) is False:
-        raise HTTPException(status_code=401, detail="invalid token")
+    check_request(token, params)
     async with aiohttp.ClientSession() as session:
         async with session.get(f"http://{VOICEVOX_ADDRESS}/{params}?{request.query_params}",
                                data=json.dumps(body)) as response:
@@ -57,7 +72,7 @@ async def get_item(
             print("Content-type:", response.headers['content-type'])
 
             if response.headers['content-type'] == "audio/wav":
-                return await response.read()
+                return Response(await response.read(), media_type="audio/wav")
             else:
                 return await response.json()
 
@@ -67,15 +82,17 @@ def reset_limit_job():
 
 
 def is_enabled_token(token):
-    if token in enabled_tokens:
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", token):
+        return False
+    if enabled_tokens.get(token, 0) > time.monotonic():
         return True
     for d in stripe.Subscription.search(limit=10,
                                         query=f"status:'active' AND metadata['voicevox_token']:'{token}'"):
-        enabled_tokens.append(token)
+        enabled_tokens[token] = time.monotonic() + TOKEN_CACHE_SECONDS
         return True
     for d in stripe.Subscription.search(limit=10,
                                         query=f"status:'trialing' AND metadata['voicevox_token']:'{token}'"):
-        enabled_tokens.append(token)
+        enabled_tokens[token] = time.monotonic() + TOKEN_CACHE_SECONDS
         return True
     return False
 

@@ -45,13 +45,9 @@ async def post_item(
     token: str, params: str, request: Request, body=Body(default=None)
 ):
     check_request(token, params)
-    if body is None:
-        headers = {}
-    else:
-        headers = {'Content-Type': 'application/json', }
     async with aiohttp.ClientSession() as session:
         async with session.post(f"http://{VOICEVOX_ADDRESS}/{params}?{request.query_params}",
-                                data=json.dumps(body), headers=headers) as response:
+                                json=body) as response:
             if response.status >= 400:
                 print("upstream", params, response.status)
             return Response(await response.read(), status_code=response.status,
@@ -60,12 +56,11 @@ async def post_item(
 
 @app.get("/{token}/{params}")
 async def get_item(
-    token: str, params: str, request: Request, body=Body(default=None)
+    token: str, params: str, request: Request
 ):
     check_request(token, params)
     async with aiohttp.ClientSession() as session:
-        async with session.get(f"http://{VOICEVOX_ADDRESS}/{params}?{request.query_params}",
-                               data=json.dumps(body)) as response:
+        async with session.get(f"http://{VOICEVOX_ADDRESS}/{params}?{request.query_params}") as response:
             if response.status >= 400:
                 print("upstream", params, response.status)
             return Response(await response.read(), status_code=response.status,

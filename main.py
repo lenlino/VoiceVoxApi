@@ -52,12 +52,10 @@ async def post_item(
     async with aiohttp.ClientSession() as session:
         async with session.post(f"http://{VOICEVOX_ADDRESS}/{params}?{request.query_params}",
                                 data=json.dumps(body), headers=headers) as response:
-            print("Status:", response.status)
-            print("Content-type:", response.headers['content-type'])
-            if response.headers['content-type'] == "audio/wav":
-                return Response(await response.read(), media_type="audio/wav")
-            else:
-                return await response.json()
+            if response.status >= 400:
+                print("upstream", params, response.status)
+            return Response(await response.read(), status_code=response.status,
+                            media_type=response.headers.get("content-type"))
 
 
 @app.get("/{token}/{params}")
@@ -68,13 +66,10 @@ async def get_item(
     async with aiohttp.ClientSession() as session:
         async with session.get(f"http://{VOICEVOX_ADDRESS}/{params}?{request.query_params}",
                                data=json.dumps(body)) as response:
-            print("Status:", response.status)
-            print("Content-type:", response.headers['content-type'])
-
-            if response.headers['content-type'] == "audio/wav":
-                return Response(await response.read(), media_type="audio/wav")
-            else:
-                return await response.json()
+            if response.status >= 400:
+                print("upstream", params, response.status)
+            return Response(await response.read(), status_code=response.status,
+                            media_type=response.headers.get("content-type"))
 
 def reset_limit_job():
     print("This job is run every day at 0:00")
